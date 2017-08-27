@@ -15,7 +15,7 @@ from torch.autograd import Variable
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=True, help='cifar10 | lsun | imagenet | folder | lfw | fake')
+parser.add_argument('--dataset', required=True, help='mnist | cifar10 | lsun | imagenet | folder | lfw | fake')
 parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
 parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
@@ -32,6 +32,7 @@ parser.add_argument('--netG', default='', help="path to netG (to continue traini
 parser.add_argument('--netD', default='', help="path to netD (to continue training)")
 parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
+parser.add_argument('--nc', default=3, type=int, help='input channel depth')
 
 opt = parser.parse_args()
 print(opt)
@@ -78,6 +79,13 @@ elif opt.dataset == 'cifar10':
                                transforms.ToTensor(),
                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                            ]))
+elif opt.dataset == 'mnist':
+    dataset = dset.MNIST(root=opt.dataroot, download=True,
+                         transform=transforms.Compose([
+                             transforms.Scale(opt.imageSize),
+                             transforms.ToTensor(),
+                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                         ]))
 elif opt.dataset == 'fake':
     dataset = dset.FakeData(image_size=(3, opt.imageSize, opt.imageSize),
                             transform=transforms.ToTensor())
@@ -89,7 +97,7 @@ ngpu = int(opt.ngpu)
 nz = int(opt.nz)
 ngf = int(opt.ngf)
 ndf = int(opt.ndf)
-nc = 3
+nc = int(opt.nc)
 
 
 # custom weights initialization called on netG and netD
@@ -108,7 +116,7 @@ class _netG(nn.Module):
         self.ngpu = ngpu
         self.main = nn.Sequential(
             # input is Z, going into a convolution
-            nn.ConvTranspose2d(     nz, ngf * 8, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
             # state size. (ngf*8) x 4 x 4
@@ -183,6 +191,10 @@ netD.apply(weights_init)
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
 print(netD)
+
+# save models to be loaded later
+torch.save(netG, '%s/generator.pth' % opt.outf)
+torch.save(netD, '%s/discriminator.pth' % opt.outf)
 
 criterion = nn.BCELoss()
 
